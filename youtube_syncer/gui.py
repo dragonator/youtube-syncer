@@ -31,7 +31,6 @@ class MainWindow(QtGui.QMainWindow):
         self.master_layout.addLayout(self._panel_url_header())
         self.master_layout.addWidget(self._panel_checkboxes())
         self.setLayout(self.master_layout)
-        self.show()
 
     def _panel_url_header(self):
         url_header = QtGui.QHBoxLayout()
@@ -50,7 +49,6 @@ class MainWindow(QtGui.QMainWindow):
 
     def _panel_checkboxes(self):
         self.checkboxes_layout = QtGui.QFormLayout()
-
         checkboxes_container = QtGui.QWidget()
         checkboxes_container.setLayout(self.checkboxes_layout)
 
@@ -74,11 +72,15 @@ class MainWindow(QtGui.QMainWindow):
 
             playlist_info['checkbutton'] = QtGui.QCheckBox(playlist)
             self.checkboxes_layout.addRow(playlist_info['checkbutton'])
+            videos_checkboxes_container = QtGui.QVBoxLayout()
+            videos_checkboxes_container.setContentsMargins(15, 0, 0, 0)
             for video in videos:
                 video_cb = QtGui.QCheckBox(video['title'])
-                self.checkboxes_layout.addRow(video_cb)
+                # self.checkboxes_layout.addRow(video_cb)
+                videos_checkboxes_container.addWidget(video_cb)
                 playlist_info['videos'].append(video_cb)
 
+            self.checkboxes_layout.addRow(videos_checkboxes_container)
             self.playlists_checkboxes[playlist] = playlist_info
 
 
@@ -88,6 +90,7 @@ def main():
         app = QtGui.QApplication(sys.argv)
 
     main_window = MainWindow()
+    main_window.show()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
