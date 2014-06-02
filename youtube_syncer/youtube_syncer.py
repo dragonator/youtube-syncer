@@ -1,4 +1,5 @@
 import sys
+import os
 import re
 import urllib.request
 
@@ -8,6 +9,7 @@ from bs4 import BeautifulSoup
 
 class YTSyncer():
     playlists = dict()
+    download_here = os.getcwd()
 
     def __init__(self, url=None):
         if url:
@@ -15,14 +17,10 @@ class YTSyncer():
         else:
             self.playlists = dict()
 
-    @staticmethod
     def _to_int(string):
         return int(re.sub(r'[^0-9]', '', string))
 
-    @staticmethod
     def _get_filtered_video_info(pafy_playlist_item):
-        # This will tell us at return if there is any problem
-        # with filtering video information
         succeeded = True
 
         try:
@@ -36,8 +34,9 @@ class YTSyncer():
                      comments_count=YTSyncer._to_int(meta_info['comments']),
                      length_seconds=meta_info['length_seconds'],
                      rating=meta_info['rating'],
-                     streams=pafy_playlist_item['pafy'].allstreams,
-                     for_download=pafy_playlist_item['pafy'].getbest())
+                     all_streams=pafy_playlist_item['pafy'].allstreams,
+                     selected_stream=pafy_playlist_item['pafy'].getbestaudio(),
+                     is_for_download=True)
 
         except IOError as message:
             title = '[ '+pafy_playlist_item['playlist_meta']['title']+' ]'
@@ -66,14 +65,10 @@ class YTSyncer():
     def get_playlist_videos_info(url_to_playlist_page):
         playlists = dict()
 
-        # Get playlist information using pafy module
         pafy_playlist_info = pafy.get_playlist(url_to_playlist_page)
 
-        # Get playlist title
         playlist_title = pafy_playlist_info['title']
 
-        # Creating list for the videos in a playlist
-        # and fill it
         playlists[playlist_title] = list()
         for video in pafy_playlist_info['items']:
             video_info, succeeded = YTSyncer._get_filtered_video_info(video)
@@ -84,7 +79,6 @@ class YTSyncer():
 
     @staticmethod
     def load_playlists(url):
-        # Dictionary with (all playlists/the playlist) information
         playlists = dict()
         if url.find('playlists') > 0:
             playlists_urls = YTSyncer.get_playlists_urls(url)
@@ -97,3 +91,16 @@ class YTSyncer():
             playlists = YTSyncer.get_playlist_videos_info(url)
 
         return playlists
+
+    def download_videos(self):
+        for playlist, videos in self.playlists.items():
+            new_directory = self.download_here + '/' + playlist
+            if not os.path.exists(new_directory):
+                os.makedirs(new_directory)
+
+            for video in videos:
+                if video['is_for_download']:
+                    stream = video['selected_stream']
+                    file_fullpath = new_directory + '/'\
+                        + stream.title + '.' + stream.extension
+                    stream.download(filepath=file_fullpath)
