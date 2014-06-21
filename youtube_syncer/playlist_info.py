@@ -1,4 +1,6 @@
 import re
+import sys
+import urllib
 
 import pafy
 from bs4 import BeautifulSoup
@@ -6,9 +8,9 @@ from bs4 import BeautifulSoup
 
 class PlaylistInfo():
     format_and_quality = {
-        "normal": [],
-        "video": [],
-        "audio": []
+        "normal": set(),
+        "video": set(),
+        "audio": set()
     }
     domain_name = 'https://www.youtube.com'
 
@@ -17,16 +19,16 @@ class PlaylistInfo():
         return int(re.sub(r'[^0-9]', '', string))
 
     @classmethod
-    def _get_available_formats_and_quality(cls, playlists):
+    def get_available_formats_and_quality(cls, playlists):
         format_and_quality = cls.format_and_quality
         for videos in playlists.values():
             for video in videos:
                 for stream in video['streams'].allstreams:
                     _format, _quality = str(stream).split(":")
-                    if _quality not in format_and_quality[_format]:
-                        format_and_quality[_format].append(_quality)
+                    format_and_quality[_format].add(_quality)
 
         for streams in format_and_quality.values():
+            streams = list(streams)
             streams.sort()
 
         return format_and_quality
@@ -85,4 +87,3 @@ class PlaylistInfo():
                 print(sys.exc_info()[0])
 
         return playlists
-

@@ -1,5 +1,7 @@
 import sys
 from functools import partial
+import threading
+import time
 
 from PySide import QtGui, QtCore
 
@@ -20,9 +22,16 @@ class MainWindow(QtGui.QMainWindow):
     MIN_BUTTON_HEIGHT = 30
     MIN_LINEEDIT_HEIGHT = 30
 
+    statusChanged = QtCore.Signal()
+
     def __init__(self):
         self.yt_syncer = YTSyncer()
+        self.initGui()
+        status_handler = threading.Thread(target=self.check_for_status_updates)
+        status_handler.daemon = True
+        status_handler.start()
 
+    def initGui(self):
         QtGui.QMainWindow.__init__(self)
         self.setWindowTitle("YouTube Syncer")
         self.setGeometry(350, 350, 850, 600)
@@ -35,14 +44,18 @@ class MainWindow(QtGui.QMainWindow):
         self.right_layout = QtGui.QVBoxLayout()
         self.right_layout.addWidget(self._right_panel)
 
-        self.master_layout = QtGui.QHBoxLayout()
-        self.master_layout.addLayout(self.left_layout)
-        self.master_layout.addLayout(self.right_layout)
+        self.status_bar = QtGui.QStatusBar()
+        self.statusChanged.connect(self.update_status)
+
+        self.master_layout = QtGui.QGridLayout()
+        self.master_layout.addLayout(self.left_layout, 0, 0)
+        self.master_layout.addLayout(self.right_layout, 0, 1)
+        self.master_layout.addWidget(self.status_bar, 1, 0, 1, 2)
 
         self.central_widget = QtGui.QWidget(self)
         self.central_widget.setLayout(self.master_layout)
         self.setCentralWidget(self.central_widget)
-        self.setLayout(self.master_layout)
+        # self.setLayout(self.master_layout)
 
     @property
     def _panel_url_header(self):
@@ -132,19 +145,20 @@ class MainWindow(QtGui.QMainWindow):
         file_format_groupbox.setMaximumWidth(400)
         file_format_groupbox.setLayout(file_format_layout)
 
-        self.radio_both = QtGui.QRadioButton("Video")
-        self.radio_both.setMinimumWidth(80)
-        self.radio_both.clicked.connect(self._update_streams_list)
+        self.radio = {}
+        self.radio['normal'] = QtGui.QRadioButton("Video")
+        self.radio['normal'].setMinimumWidth(80)
+        self.radio['normal'].clicked.connect(self._update_streams_list)
         # self.radio_video = QtGui.QRadioButton("Video only")
         # self.radio_video.clicked.connect(self.update_streams_list)
-        self.radio_audio = QtGui.QRadioButton("Audio")
-        self.radio_audio.setMinimumWidth(80)
-        self.radio_audio.clicked.connect(self._update_streams_list)
+        self.radio['audio'] = QtGui.QRadioButton("Audio")
+        self.radio['audio'].setMinimumWidth(80)
+        self.radio['audio'].clicked.connect(self._update_streams_list)
 
         radio_buttons_group = QtGui.QButtonGroup()
-        radio_buttons_group.addButton(self.radio_both)
+        radio_buttons_group.addButton(self.radio['normal'])
         # radio_buttons_group.addButton(self.radio_video)
-        radio_buttons_group.addButton(self.radio_audio)
+        radio_buttons_group.addButton(self.radio['audio'])
 
         select_best = QtGui.QCheckBox("Auto select best available stream")
         select_best.stateChanged.connect(self._auto_select_best_stream)
@@ -154,13 +168,13 @@ class MainWindow(QtGui.QMainWindow):
         self.streams_list.setEnabled(False)
         self.streams_list.itemClicked.connect(self._set_stream_quality)
 
-        file_format_layout.addWidget(self.radio_both, 0, 0)
+        file_format_layout.addWidget(self.radio['normal'], 0, 0)
         # file_format_layout.addWidget(self.radio_video)
-        file_format_layout.addWidget(self.radio_audio, 1, 0)
+        file_format_layout.addWidget(self.radio['audio'], 1, 0)
         file_format_layout.addWidget(select_best, 3, 1, 1, 2)
         file_format_layout.addWidget(self.streams_list, 0, 1, 3, 1)
 
-        self.radio_both.click()
+        self.radio[self.yt_syncer.filters['stream_format']].click()
         select_best.click()
 
         return file_format_groupbox
@@ -247,21 +261,12 @@ class MainWindow(QtGui.QMainWindow):
             self.yt_syncer.filters['stream_quality'] = None
 
     def _update_streams_list(self):
-        key = None
-        if self.radio_both.isChecked():
-            key = "normal"
-        # if self.radio_video.isChecked():
-        #     key = "video"
-        if self.radio_audio.isChecked():
-            key = "audio"
-
-        self.yt_syncer.filters['stream_format'] = key
+        key = self.yt_syncer.filters['stream_format']
         self._set_stream_quality(None)
         self.streams_list.clear()
-        if key is not None:
-            for stream in self.yt_syncer.format_and_quality[key]:
-                lw = QtGui.QListWidgetItem(stream)
-                self.streams_list.addItem(lw)
+        for stream in self.yt_syncer.format_and_quality[key]:
+            lw = QtGui.QListWidgetItem(stream)
+            self.streams_list.addItem(lw)
 
     def _pop_up_browser_dialog(self):
         title = "Save to: Select Directory"
@@ -276,10 +281,21 @@ class MainWindow(QtGui.QMainWindow):
 
     def _load_videos(self):
         url = self.url_text_box.text()
-        self.yt_syncer = YTSyncer(url)
+        load = threading.Thread(target=self.yt_syncer.load_playlists,
+                                args=(url,))
+        load.daemon = True
+        load.start()
+        while load.isAlive():
+            self.update_status()
+
+        self.update_status("Creating checkboxes for videos...")
         self._add_checkboxes(self.yt_syncer.playlists)
         self.filters_groupbox.setEnabled(True)
+
+        self.update_status("Updating streams list...")
         self._update_streams_list()
+
+        self.update_status("Idle")
 
     def _add_checkboxes(self, playlists):
         self.clear_layout(self.checkboxes_layout)
@@ -341,6 +357,11 @@ class MainWindow(QtGui.QMainWindow):
         value_widget.setEnabled(bool(state))
         self.yt_syncer.filters[filter_key] = value
 
+    def update_status(self, message=None):
+        if message is not None:
+            self.yt_syncer.set_status(message)
+        self.status_bar.showMessage(self.yt_syncer.status)
+
     def download(self):
         self.yt_syncer.filters["selected"] = self.get_selected_videos()
 
@@ -357,9 +378,6 @@ class MainWindow(QtGui.QMainWindow):
             for qu in quality:
                 print("     ", qu)
         """
-
-    def get_filters_dict(self):
-        pass
 
     def get_selected_videos(self):
         return {
@@ -378,6 +396,15 @@ class MainWindow(QtGui.QMainWindow):
                 child.widget().deleteLater()
             elif child.layout() is not None:
                 self.clear_layout(child.layout())
+
+    def check_for_status_updates(self):
+        while True:
+            try:
+                if self.yt_syncer.status != self.status_bar.currentMessage():
+                    self.statusChanged.emit()
+                time.sleep(1)
+            except RuntimeError:
+                break
 
 
 def main():

@@ -1,41 +1,34 @@
-import sys
 import os
-import re
-import urllib.request
-
-import pafy
 
 from filters import Filter
 from playlist_info import PlaylistInfo
+from settings import Settings
 
 
 class YTSyncer():
     playlists = {}
     filtered_playlists = {}
     target_directory = os.getcwd()
-    filters = {
-        "selected": None,
-        "min_likes": None,
-        "max_likes": None,
-        "min_length_in_minutes": None,
-        "max_length_in_minutes": None,
-        "min_views_count": None,
-        "max_views_count": None,
-        "likes_dislikes_difference": None,
-        "min_comments_count": None,
-        "max_comments_count": None,
-        "before_date": None,
-        "after_date": None,
-        "stream_format": None,
-        "stream_quality": None
-    }
+    filters = {}
     format_and_quality = PlaylistInfo.format_and_quality
+    _status = "Idle"
 
     def __init__(self, url=None):
         if url is not None:
             self.load_playlists(url)
+        default_settings = Settings()
+        self.filters = default_settings.default_filters
+        self.target_directory = default_settings.default_target_directory
+
+    def set_status(self, message):
+        self._status = message
+
+    @property
+    def status(self):
+        return self._status
 
     def load_playlists(self, url):
+        self.set_status("Loading playlists...")
         playlists = {}
         if url.find('playlists') > 0:
             playlists_urls = PlaylistInfo.get_playlists_urls(url)
@@ -47,8 +40,9 @@ class YTSyncer():
             playlists = \
                 dict(list(playlists.items()) + list(playlist_info.items()))
 
+        self.set_status("Checking available file formats and streams...")
         self.format_and_quality = \
-            PlaylistInfo._get_available_formats_and_quality(playlists)
+            PlaylistInfo.get_available_formats_and_quality(playlists)
         self.playlists = playlists
 
     def filter_videos(self, selected=None, min_likes=None, max_likes=None,
@@ -129,5 +123,6 @@ class YTSyncer():
 
             for video in videos:
                 stream = video['selected_stream']
+                self.set_status("Downloading {}...".format(stream.filename))
                 file_fullpath = target_directory + os.sep + stream.filename
                 stream.download(filepath=file_fullpath)
