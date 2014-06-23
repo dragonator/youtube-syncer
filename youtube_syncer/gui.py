@@ -31,6 +31,10 @@ class MainWindow(QtGui.QMainWindow):
         status_handler.daemon = True
         status_handler.start()
 
+        self.icon = QtGui.QSystemTrayIcon(QtGui.QIcon('img/icon.jpg'))
+        self.icon.show()
+        self.icon.activated.connect(self.showNormal)
+
     def initGui(self):
         QtGui.QMainWindow.__init__(self)
         self.setWindowTitle("YouTube Syncer")
@@ -145,20 +149,20 @@ class MainWindow(QtGui.QMainWindow):
         file_format_groupbox.setMaximumWidth(400)
         file_format_groupbox.setLayout(file_format_layout)
 
-        self.radio = {}
-        self.radio['normal'] = QtGui.QRadioButton("Video")
-        self.radio['normal'].setMinimumWidth(80)
-        self.radio['normal'].clicked.connect(self._update_streams_list)
+        self.radio_buttons = {}
+        self.radio_buttons['normal'] = QtGui.QRadioButton("Video")
+        self.radio_buttons['normal'].setMinimumWidth(80)
+        self.radio_buttons['normal'].clicked.connect(self._update_streams_list)
         # self.radio_video = QtGui.QRadioButton("Video only")
         # self.radio_video.clicked.connect(self.update_streams_list)
-        self.radio['audio'] = QtGui.QRadioButton("Audio")
-        self.radio['audio'].setMinimumWidth(80)
-        self.radio['audio'].clicked.connect(self._update_streams_list)
+        self.radio_buttons['audio'] = QtGui.QRadioButton("Audio")
+        self.radio_buttons['audio'].setMinimumWidth(80)
+        self.radio_buttons['audio'].clicked.connect(self._update_streams_list)
 
         radio_buttons_group = QtGui.QButtonGroup()
-        radio_buttons_group.addButton(self.radio['normal'])
+        radio_buttons_group.addButton(self.radio_buttons['normal'])
         # radio_buttons_group.addButton(self.radio_video)
-        radio_buttons_group.addButton(self.radio['audio'])
+        radio_buttons_group.addButton(self.radio_buttons['audio'])
 
         select_best = QtGui.QCheckBox("Auto select best available stream")
         select_best.stateChanged.connect(self._auto_select_best_stream)
@@ -168,13 +172,13 @@ class MainWindow(QtGui.QMainWindow):
         self.streams_list.setEnabled(False)
         self.streams_list.itemClicked.connect(self._set_stream_quality)
 
-        file_format_layout.addWidget(self.radio['normal'], 0, 0)
+        file_format_layout.addWidget(self.radio_buttons['normal'], 0, 0)
         # file_format_layout.addWidget(self.radio_video)
-        file_format_layout.addWidget(self.radio['audio'], 1, 0)
+        file_format_layout.addWidget(self.radio_buttons['audio'], 1, 0)
         file_format_layout.addWidget(select_best, 3, 1, 1, 2)
         file_format_layout.addWidget(self.streams_list, 0, 1, 3, 1)
 
-        self.radio[self.yt_syncer.filters['stream_format']].click()
+        self.radio_buttons[self.yt_syncer.filters['stream_format']].click()
         select_best.click()
 
         return file_format_groupbox
@@ -192,8 +196,8 @@ class MainWindow(QtGui.QMainWindow):
         filters_strings = [
             ("Minimum likes :", "min_likes"),
             ("Maximum likes :", "max_likes"),
-            ("Minimum length (minutes) :", "min_length_in_minutes"),
-            ("Maximum length (minutes) :", "max_length_in_minutes"),
+            ("Minimum length (minutes) :", "min_length"),
+            ("Maximum length (minutes) :", "max_length"),
             ("Minimum views :", "min_views"),
             ("Maximum views :", "max_views"),
             ("More likes than dislikes (difference) :",
@@ -261,7 +265,11 @@ class MainWindow(QtGui.QMainWindow):
             self.yt_syncer.filters['stream_quality'] = None
 
     def _update_streams_list(self):
-        key = self.yt_syncer.filters['stream_format']
+        for radio_key, radio_btn in self.radio_buttons.items():
+            if radio_btn.isChecked():
+                key = radio_key
+                break
+        self.yt_syncer.filters['stream_format'] = key
         self._set_stream_quality(None)
         self.streams_list.clear()
         for stream in self.yt_syncer.format_and_quality[key]:
@@ -337,22 +345,22 @@ class MainWindow(QtGui.QMainWindow):
             if value.isnumeric():
                 value = int(value)
             else:
-                value_widget.setText("")
+                if len(value) != 0:
+                    value_widget.setText("")
+                    print("Wrong input")
                 value = None
-                print("Wrong input")
 
         self.yt_syncer.filters[filter_key] = value
 
     def _disable_filter(self, value_widget, filter_key, state):
         value = None
         if state:
-            if isinstance(value_widget, QtGui.QLineEdit):
-                try:
-                    value = int(value_widget.text())
-                except ValueError:
-                    value = None
-            elif isinstance(value_widget, QtGui.QCalendarWidget):
+            try:
+                value = int(value_widget.text())
+            except AttributeError:
                 value = value_widget.selectedDate().toString("d.MM.yy")
+            except ValueError:
+                value = None
 
         value_widget.setEnabled(bool(state))
         self.yt_syncer.filters[filter_key] = value
@@ -363,15 +371,16 @@ class MainWindow(QtGui.QMainWindow):
         self.status_bar.showMessage(self.yt_syncer.status)
 
     def download(self):
+        """
         self.yt_syncer.filters["selected"] = self.get_selected_videos()
 
-        self.yt_syncer.filter_videos(**self.yt_syncer.filters)
+        self.yt_syncer.filter_videos(self.yt_syncer.filters)
         self.yt_syncer.target_directory = self.target_text_box.text()
+        print(self.yt_syncer.filters)
         self.yt_syncer.download_videos()
         """
         for key, value in self.yt_syncer.filters.items():
             print(key, value)
-        """
         """
         for fformat, quality in self.yt_syncer.format_and_quality.items():
             print(fformat)
@@ -405,6 +414,13 @@ class MainWindow(QtGui.QMainWindow):
                 time.sleep(1)
             except RuntimeError:
                 break
+
+    def changeEvent(self, e):
+        if(e.type() == QtCore.QEvent.WindowStateChange and self.isMinimized()):
+            self.hide()
+            e.accept()
+        else:
+            QtGui.QMainWindow.changeEvent(self, e)
 
 
 def main():

@@ -27,9 +27,9 @@ class PlaylistInfo():
                     _format, _quality = str(stream).split(":")
                     format_and_quality[_format].add(_quality)
 
-        for streams in format_and_quality.values():
-            streams = list(streams)
-            streams.sort()
+        for key in format_and_quality.keys():
+            format_and_quality[key] = list(format_and_quality[key])
+            format_and_quality[key].sort()
 
         return format_and_quality
 
