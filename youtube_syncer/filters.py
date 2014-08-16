@@ -14,14 +14,14 @@ class Filter():
             for video in videos:
                 results = [
                     cls.has_min_likes(filters['min_likes'], video),
-                    cls.has_under_man_likes(filters['max_likes'], video),
+                    cls.has_under_max_likes(filters['max_likes'], video),
                     cls.has_min_length(filters['min_length'], video),
                     cls.has_under_max_length(filters['max_length'], video),
                     cls.has_min_views(filters['min_views'], video),
                     cls.has_under_max_views(filters['max_views'], video),
                     cls.has_more_likes(filters['likes_dislikes_difference'], video),
-                    cls.has_min_comments(filters['min_comments_count'], video),
-                    cls.has_under_max_comments(filters['max_comments_count'], video),
+                    cls.has_min_comments(filters['min_comments'], video),
+                    cls.has_under_max_comments(filters['max_comments'], video),
                     cls.is_before_date(filters['before_date'], video),
                     cls.is_after_date(filters['after_date'], video)
                 ]
@@ -56,7 +56,7 @@ class Filter():
         return video["length_seconds"] >= min_length
 
     @classmethod
-    def has_under_max_langth(cls, max_length, video):
+    def has_under_max_length(cls, max_length, video):
         if max_length is None:
             return True
         max_length = max_length*60
@@ -140,9 +140,9 @@ class Filter():
             for video in videos:
                 selected_stream = None
                 if stream_quality is None and stream_format == "normal":
-                    selected_stream = video['pafy'].getbest()
+                    selected_stream = video['streams'].getbest()
                 elif stream_quality is None and stream_format == "audio":
-                    selected_stream = video['pafy'].getbestaudio()
+                    selected_stream = video['streams'].getbestaudio()
                 else:
                     full_stream_name = stream_format + ':' + stream_quality
                     selected_stream = \

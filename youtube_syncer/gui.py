@@ -342,7 +342,6 @@ class MainWindow(QtGui.QMainWindow):
 
         self.yt_syncer.filter_videos(self.yt_syncer.filters)
         self.yt_syncer.target_directory = self.target_text_box.text()
-        print(self.yt_syncer.filters)
         self.yt_syncer.download_videos()
         """
         for key, value in self.yt_syncer.filters.items():
