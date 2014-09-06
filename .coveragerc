@@ -1,0 +1,5 @@
+[run]
+omit = *mock*, *json*, *bs4*, *html*, *pafy*, *xml*, *stringprep*, *_markupbase*, *encodings*
+
+[report]
+omit = *mock*, *json*, *bs4*, *html*, *pafy*, *xml*, *stringprep*, *_markupbase*, *encodings*

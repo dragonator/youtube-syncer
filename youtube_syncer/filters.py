@@ -120,7 +120,7 @@ class Filter():
                       int(video_date[1])*100 +
                       int(video_date[0]))
 
-        return video_date < after_date
+        return video_date > after_date
 
     @classmethod
     def return_matching_stream(cls, stream_repr, video):
